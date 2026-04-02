@@ -1,4 +1,10 @@
 from fastapi import FastAPI
+from database import engine, Base
+import models.db_models
+
+
+Base.metadata.create_all(bind=engine)
+
 
 app = FastAPI(
     title="Panopticon Engine API",
