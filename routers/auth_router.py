@@ -13,13 +13,12 @@ import models.db_models as db_models
 router = APIRouter(prefix="/auth", tags=["Security"])
 security = HTTPBearer()
 
-# -- Pydantic model for login request --
+# -- Request model for login --
 class LoginRequest(BaseModel):
     email: str
     password: str
 
-
-# -- Endpoint for user login --
+# -- Login endpoint --
 @router.post("/login")
 def login(credentials: LoginRequest, db: Session = Depends(get_db)):
     user = user_service.get_user_by_email(db, email=credentials.email)
@@ -29,7 +28,6 @@ def login(credentials: LoginRequest, db: Session = Depends(get_db)):
     
     token = auth_service.create_jwt_token(user_id=user.id, role=user.role)
     return {"access_token": token, "token_type": "bearer"}
-
 
 # -- Dependency to get the current user from the token --
 def get_current_user(
@@ -56,16 +54,17 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="User not found...")
     return user
 
-
 # -- Role-Based Access Control (RBAC) Dependency --
 class RoleChecker:
     def __init__(self, allowed_roles: list):
-        self.allowed_roles = allowed_roles
+        # Convert all allowed roles to lowercase for safe checking
+        self.allowed_roles = [role.lower() for role in allowed_roles]
 
     def __call__(self, current_user: db_models.User = Depends(get_current_user)):
-        if current_user.role not in self.allowed_roles:
+        # Convert the user's actual role to lowercase before checking
+        if current_user.role.lower() not in self.allowed_roles:
             raise HTTPException(
                 status_code=403, 
-                detail=f"Operation not permitted. Required role: {self.allowed_roles}"
+                detail=f"Operation not permitted. Your role '{current_user.role}' is blocked. Allowed roles: {self.allowed_roles}"
             )
         return current_user
