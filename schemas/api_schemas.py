@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 
@@ -19,7 +19,7 @@ class UserResponse(BaseModel):
 
 
 
-# -- finance record  schemas--
+# -- finance record  schemas --
 class RecordCreate(BaseModel):
     amount: float
     record_type: str
@@ -34,3 +34,15 @@ class RecordResponse(RecordCreate):
 
     class Config:
         from_attributes = True
+
+
+# -- analytics schemas --
+class CategorySummary(BaseModel):
+    category: str
+    total_amount: float
+
+class AnalyticsDashboard(BaseModel):
+    total_income: float
+    total_expense: float
+    net_balance: float
+    category_breakdown: List[CategorySummary]
