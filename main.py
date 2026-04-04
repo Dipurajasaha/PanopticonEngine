@@ -2,11 +2,9 @@ from fastapi import FastAPI
 from database import engine, Base
 import models.db_models
 
-from routers import user_router, finance_router
-
+from routers import user_router, finance_router, auth_router
 
 Base.metadata.create_all(bind=engine)
-
 
 app = FastAPI(
     title="Panopticon Engine API",
@@ -14,7 +12,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-
+app.include_router(auth_router.router)
 app.include_router(user_router.router)
 app.include_router(finance_router.router)
 

@@ -1,8 +1,11 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
+from dotenv import load_dotenv
+import os
 
+load_dotenv()
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./panopticon.db"
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
 # -- connection to the database --
 engine = create_engine(
