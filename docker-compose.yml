@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  # -- FastAPI Server --
+  backend:
+    build: ./backend
+    container_name: panopticon_backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      # This saves SQLite database to local computer
+      # so it doesn't get deleted when Docker turns off!
+      - ./backend:/app 
+
+  # -- Streamlit Dashboard --
+  frontend:
+    build: ./frontend
+    container_name: panopticon_frontend
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    depends_on:
+      - backend
