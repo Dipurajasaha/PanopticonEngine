@@ -86,15 +86,18 @@ Finance retrieval endpoints support precise filtering to narrow large datasets e
 ### ⚙️ Container-Native Execution
 Two isolated services run in lockstep under Docker Compose, enabling reproducible startup, consistent networking, and clean dependency boundaries.
 
+### 📊 Comprehensive Audit Logging
+All critical actions (login, user creation, role updates, record operations) are logged to both the database and server terminal in real-time. Formatted audit logs display user ID, action type, affected resource, and contextual details for complete operational visibility.
+
 ---
 
 ## Role-Based Access Control (RBAC)
 
 | Role | Dashboard Access | Dashboard Data Scope | Finance Dataset View/Download | Create Record | Soft Delete Record | Manage Users |
 |---|---:|---|---:|---|---|---:|
-| **Viewer** | ✅ | **Global summary** (same data for all roles) | ❌ | ❌ | ❌ | ❌ |
-| **Analyst** | ✅ | **Global summary** (same data for all roles) | ✅ (**full dataset**) | ✅ (**own records only**) | ✅ (**own records only**) | ❌ |
-| **Admin** | ✅ | **Global summary** (same data for all roles) | ✅ (**full dataset**) | ✅ (**own records only**) | ✅ (**own records only**) | ✅ |
+| **Viewer** | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Analyst** | ✅ | ✅ | ✅ | ✅ (**own records only**) | ✅ (**own records only**) | ❌ |
+| **Admin** | ✅ | ✅ | ✅ | ✅ (**own records only**) | ✅ (**own records only**) | ✅ |
 
 ### Dataset Access Rules (Important)
 
