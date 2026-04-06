@@ -19,6 +19,9 @@ VALID_RECORD_TYPES = {"income", "expense"}
 st.set_page_config(page_title="Panopticon Engine", page_icon="📊", layout="wide")
 
 
+#############################################################################
+# -- UI Styling --
+#############################################################################
 def inject_styles() -> None:
     st.markdown(
         """
@@ -64,6 +67,9 @@ def auth_headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
+#############################################################################
+# -- Session State Helpers --
+#############################################################################
 def init_state() -> None:
     st.session_state.setdefault("token", None)
     st.session_state.setdefault("user_email", None)
@@ -80,6 +86,9 @@ def clear_login_state() -> None:
     st.session_state.pop("user_email", None)
 
 
+#############################################################################
+# -- API Response Helpers --
+#############################################################################
 def api_error_message(resp: requests.Response) -> str:
     try:
         return resp.json().get("detail", "")
@@ -94,6 +103,9 @@ def api_error_message_from_payload(payload: dict) -> str:
     return ""
 
 
+#############################################################################
+# -- Cached API Reads --
+#############################################################################
 @st.cache_data(ttl=45, show_spinner=False)
 def fetch_dashboard_summary(api_url: str, token: str):
     response = requests.get(f"{api_url}/analytics/summary", headers=auth_headers(token), timeout=12)
@@ -137,6 +149,9 @@ def fetch_records(
     return {"status_code": response.status_code, "body": body}
 
 
+#############################################################################
+# -- Data Version Polling --
+#############################################################################
 def fetch_data_version(api_url: str, token: str):
     response = requests.get(f"{api_url}/analytics/version", headers=auth_headers(token), timeout=6)
     try:
@@ -181,6 +196,9 @@ def data_version_watcher(token: str) -> None:
     check_for_data_updates(token, force=True)
 
 
+#############################################################################
+# -- API Mutation Helpers --
+#############################################################################
 def create_record(api_url: str, token: str, payload: dict):
     return requests.post(
         f"{api_url}/records/",
@@ -236,6 +254,9 @@ def admin_delete_user(api_url: str, token: str, user_id: int):
     )
 
 
+#############################################################################
+# -- Role and Data Utilities --
+#############################################################################
 def normalize_role(role: str) -> str:
     return str(role).strip().lower()
 
@@ -283,6 +304,9 @@ def sanitize_records_df(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
     return sanitized_df, invalid_count
 
 
+#############################################################################
+# -- Dashboard Views --
+#############################################################################
 def render_hero(user_id: str, username: str, email_id: str, role: str) -> None:
     st.markdown(
         f"""
@@ -334,6 +358,9 @@ def render_exec_dashboard(token: str) -> None:
     st.markdown("</div>", unsafe_allow_html=True)
 
 
+#############################################################################
+# -- Finance Explorer View --
+#############################################################################
 def render_finance_explorer(token: str, role: str) -> None:
     st.subheader("Finance Explorer")
     st.caption("Query records with filters, explore trends, and export analysis-ready data.")
@@ -503,6 +530,9 @@ def render_finance_explorer(token: str, role: str) -> None:
         )
 
 
+#############################################################################
+# -- Record Operations View --
+#############################################################################
 def render_record_operations(token: str, current_user_id: int) -> None:
     st.subheader("Record Operations")
     st.caption("Analyst and Admin: create and soft delete finance records.")
@@ -577,6 +607,9 @@ def render_record_operations(token: str, current_user_id: int) -> None:
             st.error("Could not reach backend while loading records.")
 
 
+#############################################################################
+# -- User Management View --
+#############################################################################
 def render_user_management(token: str) -> None:
     st.subheader("User Management")
     st.caption("Admin-only: create users, change roles, and delete users.")
@@ -670,6 +703,9 @@ def render_user_management(token: str) -> None:
                     st.error("Could not reach backend while deleting user.")
 
 
+#############################################################################
+# -- Authentication View --
+#############################################################################
 def render_login_panel() -> None:
     st.title("Panopticon Engine")
     st.info("Authenticate to access the intelligence console.")
@@ -738,6 +774,9 @@ def render_login_panel() -> None:
 
 
 
+#############################################################################
+# -- Application Entrypoint --
+#############################################################################
 def main() -> None:
     inject_styles()
     init_state()

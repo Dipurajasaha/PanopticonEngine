@@ -6,15 +6,17 @@ import services.user_service as user_service
 
 from routers import user_router, finance_router, auth_router, analytics_router
 
-###########################################################################
-# -- Create database tables based on SQLAlchemy models --
-###########################################################################
+#############################################################################
+# -- Database Initialization --
+#############################################################################
+# -- Create tables from ORM models --
 Base.metadata.create_all(bind=engine)
 
 
-##########################################################################
-# -- run the SEED SCRIPT --
-##########################################################################
+#############################################################################
+# -- Seed Initialization --
+#############################################################################
+# -- Seed default users at startup --
 def initialize_db():
     db = SessionLocal()
     try: 
@@ -25,9 +27,9 @@ def initialize_db():
 initialize_db()
 
 
-###########################################################################
-# -- Initialize FastAPI app and include routers --
-###########################################################################
+#############################################################################
+# -- FastAPI Application Setup --
+#############################################################################
 app = FastAPI(
     title="Panopticon Engine API",
     description="Finance Intelligence Backend Platform",
@@ -40,7 +42,10 @@ app.include_router(finance_router.router)
 app.include_router(analytics_router.router)
 
 
-# -- Health Check Endpoint --
+#############################################################################
+# -- System Endpoint --
+#############################################################################
 @app.get("/health",tags=["System"])
 def health_check():
+    # -- Returns backend availability status --
     return {"status": "success", "message":"FastAPI server is running cleanly..."}

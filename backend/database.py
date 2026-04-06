@@ -3,10 +3,16 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 from dotenv import load_dotenv
 import os
 
+#############################################################################
+# -- Environment Configuration --
+#############################################################################
 load_dotenv()
 
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
+#############################################################################
+# -- Engine and Session Setup --
+#############################################################################
 # -- connection to the database --
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
@@ -19,7 +25,11 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
+#############################################################################
+# -- Database Dependency --
+#############################################################################
 def get_db():
+    # -- Yields one session per request --
     db = SessionLocal()
     try:
         yield db

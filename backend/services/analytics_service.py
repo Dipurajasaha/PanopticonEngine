@@ -2,6 +2,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 import models.db_models as db_models
 
+
+#############################################################################
+# -- Dashboard Aggregation --
+#############################################################################
+# -- Returns global analytics summary payload --
 def get_global_analytics(db: Session):
     totals = db.query(
         db_models.FinanceRecord.record_type,

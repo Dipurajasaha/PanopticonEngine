@@ -7,6 +7,10 @@ import models.db_models as db_models
 import schemas.api_schemas as api_schemas
 
 
+#############################################################################
+# -- Record Create Operation --
+#############################################################################
+# -- Creates a new finance record --
 def create_finance_record(db: Session, record: api_schemas.RecordCreate, owner_id: int):
     # -- creates a new finance record in database --
     db_record = db_models.FinanceRecord(
@@ -20,6 +24,10 @@ def create_finance_record(db: Session, record: api_schemas.RecordCreate, owner_i
     return db_record
 
 
+#############################################################################
+# -- User-Scoped Record Query --
+#############################################################################
+# -- Returns records for one owner --
 def get_user_records(
         db          : Session, 
         owner_id    : int, 
@@ -51,6 +59,10 @@ def get_user_records(
     return query.offset(skip).limit(limit).all()
 
 
+#############################################################################
+# -- Global Record Query --
+#############################################################################
+# -- Returns records across all owners --
 def get_all_records(
         db          : Session,
         skip        : int = 0,
@@ -77,6 +89,10 @@ def get_all_records(
     return query.offset(skip).limit(limit).all()
 
 
+#############################################################################
+# -- Record Delete Operation --
+#############################################################################
+# -- Soft-deletes one finance record --
 def soft_delete_record(db: Session, record_id: int, owner_id: int):
     # -- soft deletes a finance record for a user --
     db_record = db.query(db_models.FinanceRecord).filter(

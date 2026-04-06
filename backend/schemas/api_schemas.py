@@ -17,7 +17,9 @@ ALLOWED_RECORD_TYPES = {
 EMAIL_REGEX = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 
 
-# -- user schemas --
+#############################################################################
+# -- User Schemas --
+#############################################################################
 class UserCreate(BaseModel):
     email: str
     password: str
@@ -69,7 +71,9 @@ class UserRoleUpdate(BaseModel):
 
 
 
-# -- finance record  schemas --
+#############################################################################
+# -- Finance Record Schemas --
+#############################################################################
 class RecordCreate(BaseModel):
     amount: float = Field(gt=0)
     record_type: str
@@ -114,7 +118,9 @@ class RecordResponse(BaseModel):
         from_attributes = True
 
 
-# -- analytics schemas --
+#############################################################################
+# -- Analytics Schemas --
+#############################################################################
 class CategorySummary(BaseModel):
     category: str
     total_amount: float

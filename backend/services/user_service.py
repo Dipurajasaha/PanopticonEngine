@@ -8,6 +8,8 @@ import services.auth_service as auth_service
 #############################################################################
 # -- User Service: Handles all user-related database operations and business logic --
 #############################################################################
+
+# -- Helper function to ensure role is stored in a consistent format --
 def _normalize_role(role: str) -> str:
     normalized = str(role).strip().lower()
     role_map = {
@@ -15,30 +17,34 @@ def _normalize_role(role: str) -> str:
         "analyst": "Analyst",
         "admin": "Admin",
     }
+    
+    # -- Validate and return the normalized role --
     if normalized not in role_map:
         raise ValueError("Invalid role. Allowed roles are Viewer, Analyst, Admin")
     return role_map[normalized]
 
 
-##########################################################################
+#############################################################################
 # -- User Management Functions --
-##########################################################################
+#############################################################################
+
+# -- Fetches a user by their email address --
 def get_user_by_email(db: Session, email: str):
-    # -- fetches a user by their email address --
     return db.query(db_models.User).filter(db_models.User.email == email).first()
 
-
+# -- Fetches a user by their ID --
 def get_user_by_id(db: Session, user_id: int):
     return db.query(db_models.User).filter(db_models.User.id == user_id).first()
 
 
-############################################################################
-# -- User Creation and Seeding Functions --
-############################################################################
+#############################################################################
+# -- Core CRUD operations for user management --
+#############################################################################
+
+# -- Creates a new user in the database --
 def create_user(db: Session, user: api_schemas.UserCreate):
     hashed_password = auth_service.hash_password(user.password)
 
-    # -- creates a new user in database --
     db_user = db_models.User(
         email = user.email,
         hashed_password = hashed_password,
@@ -49,7 +55,7 @@ def create_user(db: Session, user: api_schemas.UserCreate):
     db.refresh(db_user)
     return db_user
 
-
+# -- Updates a user's role --
 def update_user_role(db: Session, user_id: int, role: str):
     db_user = get_user_by_id(db, user_id)
     if not db_user:
@@ -60,7 +66,7 @@ def update_user_role(db: Session, user_id: int, role: str):
     db.refresh(db_user)
     return db_user
 
-
+# -- Deletes a user from the database --
 def delete_user(db: Session, user_id: int):
     db_user = get_user_by_id(db, user_id)
     if not db_user:
@@ -71,11 +77,12 @@ def delete_user(db: Session, user_id: int):
     return True
 
 
-###########################################################################
+#############################################################################
 # -- Seed function to create default users at startup --
-###########################################################################
+#############################################################################
+
+# -- Injects default testing accounts if they do not exist --
 def seed_default_users(db: Session):
-    # -- check if the admin already exists to prevent duplicate errors on restart
     admin_exists = get_user_by_email(db, "admin@panopticon.com")
 
     if not admin_exists:
@@ -85,4 +92,5 @@ def seed_default_users(db: Session):
         create_user(db, api_schemas.UserCreate(email="analyst@panopticon.com", password="analyst123", role="Analyst"))
         # -- Create Viewer --
         create_user(db, api_schemas.UserCreate(email="viewer@panopticon.com", password="viewer123", role="Viewer"))
+        
         print("System Notice: Default testing credentials successfully injected into database...")

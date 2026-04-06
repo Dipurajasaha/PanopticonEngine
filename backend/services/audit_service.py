@@ -6,6 +6,10 @@ import models.db_models as db_models
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+#############################################################################
+# -- Audit Write Operation --
+#############################################################################
+# -- Persists and logs audit events --
 def log_action(db: Session, user_id: int, action: str, resource: str, details: str = None):
     log_entry = db_models.AuditLog(
         user_id=user_id,

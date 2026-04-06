@@ -14,12 +14,16 @@ import models.db_models as db_models
 router = APIRouter(prefix="/auth", tags=["Security"])
 security = HTTPBearer()
 
-# -- Request model for login --
+#############################################################################
+# -- Request Schema --
+#############################################################################
 class LoginRequest(BaseModel):
     email: str
     password: str
 
-# -- Login endpoint --
+#############################################################################
+# -- Authentication Endpoint --
+#############################################################################
 @router.post("/login")
 def login(
     credentials: LoginRequest,
@@ -43,7 +47,9 @@ def login(
     token = auth_service.create_jwt_token(user_id=user.id, role=user.role)
     return {"access_token": token, "token_type": "bearer"}
 
-# -- Dependency to get the current user from the token --
+#############################################################################
+# -- Authentication Dependency --
+#############################################################################
 def get_current_user(
         credentials: HTTPAuthorizationCredentials = Depends(security), 
         db: Session=Depends(get_db)
@@ -68,7 +74,9 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="User not found...")
     return user
 
-# -- Role-Based Access Control (RBAC) Dependency --
+#############################################################################
+# -- RBAC Dependency --
+#############################################################################
 class RoleChecker:
     def __init__(self, allowed_roles: list):
         # Normalize allowed roles to prevent case/whitespace mismatches.

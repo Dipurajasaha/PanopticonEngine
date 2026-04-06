@@ -6,7 +6,7 @@ import os
 import jwt
 
 #############################################################################
-# -- Load Environment Variables - -
+# -- Environment Configuration --
 #############################################################################
 load_dotenv()
 
@@ -15,9 +15,9 @@ ALGORITHM = os.getenv("ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 
 
-##############################################################################
-# -- Password Hashing and JWT Token Creation - -
-##############################################################################
+#############################################################################
+# -- Password and Token Utilities --
+#############################################################################
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
@@ -26,12 +26,20 @@ if not SECRET_KEY:
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+#############################################################################
+# -- Password Helpers --
+#############################################################################
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
+
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
+
+#############################################################################
+# -- Token Helper --
+#############################################################################
 def create_jwt_token(user_id: int, role: str) -> str:
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {

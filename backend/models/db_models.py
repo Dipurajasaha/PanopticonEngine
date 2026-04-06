@@ -5,6 +5,9 @@ from database import Base
 
 
 
+#############################################################################
+# -- User Model --
+#############################################################################
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -16,6 +19,9 @@ class User(Base):
 
 
 
+#############################################################################
+# -- Finance Record Model --
+#############################################################################
 class FinanceRecord(Base):
     __tablename__ = "finance_records"
     id = Column(Integer, primary_key=True, index=True)
@@ -29,23 +35,11 @@ class FinanceRecord(Base):
     owner_id = Column(Integer, ForeignKey("users.id"))
     
     owner = relationship("User", back_populates="records")
-    transaction_analysis = relationship("TransactionAnalysis", back_populates="record", uselist=False)
 
 
-
-class TransactionAnalysis(Base):
-    __tablename__ = "transaction_analysis"
-    id = Column(Integer, primary_key=True, index=True)
-    record_id = Column(Integer, ForeignKey("finance_records.id"))
-    
-    predicted_category = Column(String, nullable=True)
-    confidence_score = Column(Float, nullable=True)
-    is_anomaly = Column(Boolean, default=False)
-    anomaly_score = Column(Float, nullable=True)
-
-    record = relationship("FinanceRecord", back_populates="transaction_analysis")
-
-
+#############################################################################
+# -- Audit Log Model --
+#############################################################################
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 

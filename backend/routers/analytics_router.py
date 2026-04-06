@@ -13,16 +13,27 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/analytics", tags=["Dashboard Analytics"])
 
-# -- everyone can view the dashboard --
+#############################################################################
+# -- Role Access Dependency --
+#############################################################################
 allow_dashboard = RoleChecker(["Admin", "Analyst", "Viewer"])
 
 
+#############################################################################
+# -- Version Endpoint --
+#############################################################################
+# -- Returns analytics data version key --
 @router.get("/version")
 def get_analytics_data_version(
     _current_user: db_models.User = Depends(allow_dashboard)
 ):
     return {"version": cache_service.get_finance_data_version()}
 
+
+#############################################################################
+# -- Summary Endpoint --
+#############################################################################
+# -- Returns global dashboard summary --
 @router.get("/summary", response_model=api_schemas.AnalyticsDashboard)
 def get_dashboard_summary(
     db: Session = Depends(get_db),

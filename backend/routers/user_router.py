@@ -9,12 +9,17 @@ from database import get_db
 from routers.auth_router import RoleChecker
 import models.db_models as db_models
 
-# -- User Router --
+#############################################################################
+# -- User Router Setup --
+#############################################################################
 router = APIRouter(prefix="/users", tags=["User"])
 
 allow_admin = RoleChecker(["Admin"])
 
-# -- Public route: Anyone can register an account --
+#############################################################################
+# -- Public Endpoint --
+#############################################################################
+# -- Register a new account --
 @router.post("/", response_model=api_schemas.UserResponse)
 def create_user(user: api_schemas.UserCreate, db: Session = Depends(get_db)):
     existing_user = user_service.get_user_by_email(db, email=user.email)
@@ -25,6 +30,9 @@ def create_user(user: api_schemas.UserCreate, db: Session = Depends(get_db)):
     return user_service.create_user(db=db, user=user)
 
 
+#############################################################################
+# -- Admin Endpoints --
+#############################################################################
 @router.post("/admin", response_model=api_schemas.UserResponse)
 def admin_create_user(
     user: api_schemas.UserCreate,
@@ -48,7 +56,7 @@ def admin_create_user(
     )
     return created_user
 
-# -- Admin route: only Admins can manage all users in the system --
+# -- List all users --
 @router.get("/", response_model=List[api_schemas.UserResponse])
 def get_all_users(
         db   : Session = Depends(get_db),
@@ -57,6 +65,8 @@ def get_all_users(
     return db.query(db_models.User).all()
 
 
+
+# -- Update role for a user --
 @router.patch("/{user_id}/role", response_model=api_schemas.UserResponse)
 def update_user_role(
     user_id: int,
@@ -80,6 +90,8 @@ def update_user_role(
     return updated_user
 
 
+
+# -- Delete a user account --
 @router.delete("/{user_id}")
 def delete_user(
     user_id: int,

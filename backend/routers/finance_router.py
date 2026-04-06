@@ -13,12 +13,18 @@ import services.cache_service as cache_service
 
 router = APIRouter(prefix="/records", tags=["Finance Records"])
 
-# -- defined specific role access --
+#############################################################################
+# -- Role Access Dependencies --
+#############################################################################
 allow_admin = RoleChecker(["Admin"])
 allow_view_records = RoleChecker(["Admin","Analyst"])
 allow_edit_records = RoleChecker(["Admin", "Analyst"])
 
 
+#############################################################################
+# -- Version Endpoint --
+#############################################################################
+# -- Returns finance data version key --
 @router.get("/version")
 def get_records_version(
     _current_user: db_models.User = Depends(allow_view_records)
@@ -26,7 +32,10 @@ def get_records_version(
     return {"version": cache_service.get_finance_data_version()}
 
 
-# -- Admin and Analyst can create record -- 
+#############################################################################
+# -- Record Create Endpoint --
+#############################################################################
+# -- Creates a new finance record --
 @router.post("/", response_model=api_schemas.RecordResponse)
 def create_record(
     record            : api_schemas.RecordCreate, 
@@ -47,7 +56,10 @@ def create_record(
     return new_record
 
 
-# -- Admin and Analyst can view record --
+#############################################################################
+# -- Record Read Endpoint --
+#############################################################################
+# -- Returns filtered finance records --
 @router.get("/", response_model=List[api_schemas.RecordResponse])
 def read_records(
     skip            :int = 0, 
@@ -70,7 +82,10 @@ def read_records(
     )
 
 
-# -- Admin and Analyst can delete record --
+#############################################################################
+# -- Record Delete Endpoint --
+#############################################################################
+# -- Soft-deletes a finance record --
 @router.delete("/{record_id}")
 def delete_record(
     record_id         : int, 
