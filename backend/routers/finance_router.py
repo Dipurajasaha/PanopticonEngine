@@ -14,14 +14,15 @@ router = APIRouter(prefix="/records", tags=["Finance Records"])
 # -- defined specific role access --
 allow_admin = RoleChecker(["Admin"])
 allow_view_records = RoleChecker(["Admin","Analyst"])
+allow_edit_records = RoleChecker(["Admin", "Analyst"])
 
 
-# -- only Admin can create record -- 
+# -- Admin and Analyst can create record -- 
 @router.post("/", response_model=api_schemas.RecordResponse)
 def create_record(
     record          :api_schemas.RecordCreate, 
     db              :Session = Depends(get_db),
-    current_user    :db_models.User = Depends(allow_admin)
+    current_user    :db_models.User = Depends(allow_edit_records)
 ):
     return finance_service.create_finance_record(db=db, record=record, owner_id=current_user.id)
 
@@ -38,9 +39,8 @@ def read_records(
     db              :Session = Depends(get_db), 
     current_user    :db_models.User = Depends(allow_view_records)
 ):
-    return finance_service.get_user_records(
+    return finance_service.get_all_records(
         db=db, 
-        owner_id=current_user.id, 
         skip=skip, 
         limit=limit,
         record_type=record_type,
@@ -50,12 +50,12 @@ def read_records(
     )
 
 
-# -- only Admin can delete record --
+# -- Admin and Analyst can delete record --
 @router.delete("/{record_id}")
 def delete_record(
     record_id     :int, 
     db            :Session = Depends(get_db),
-    current_user  :db_models.User = Depends(allow_admin)
+    current_user  :db_models.User = Depends(allow_edit_records)
 ):
     success = finance_service.soft_delete_record(db=db, record_id=record_id, owner_id=current_user.id)
     if not success:

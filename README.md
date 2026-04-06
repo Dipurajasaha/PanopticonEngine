@@ -90,11 +90,70 @@ Two isolated services run in lockstep under Docker Compose, enabling reproducibl
 
 ## Role-Based Access Control (RBAC)
 
-| Role | Analytics Dashboard | View Finance Records | Create Finance Records | Delete Finance Records | Manage Users |
-|---|---:|---:|---:|---:|---:|
-| **Viewer** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Analyst** | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **Admin** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Role | Dashboard Access | Dashboard Data Scope | Finance Dataset View/Download | Create Record | Soft Delete Record | Manage Users |
+|---|---:|---|---:|---|---|---:|
+| **Viewer** | ✅ | **Global summary** (same data for all roles) | ❌ | ❌ | ❌ | ❌ |
+| **Analyst** | ✅ | **Global summary** (same data for all roles) | ✅ (**full dataset**) | ✅ (**own records only**) | ✅ (**own records only**) | ❌ |
+| **Admin** | ✅ | **Global summary** (same data for all roles) | ✅ (**full dataset**) | ✅ (**own records only**) | ✅ (**own records only**) | ✅ |
+
+### Dataset Access Rules (Important)
+
+- **Dashboard is centralized/global**: all roles see the same aggregated financial summary.
+- **Viewer cannot access raw records dataset**: dashboard only.
+- **Analyst and Admin can view + download the full records dataset** in the explorer.
+- **Record write model**: records are **creatable + soft-deletable only** (no update endpoint).
+- **Ownership rule for writes**: Analyst/Admin can create and soft-delete only **their own records**.
+- **Admin-only governance**: create users with roles, update user roles, and delete users.
+
+---
+
+## API Endpoints
+
+### Security
+
+| Method | Endpoint | Description | Access |
+|---|---|---|---|
+| `POST` | `/auth/login` | Authenticate user and return JWT token | Public |
+
+### User Management
+
+| Method | Endpoint | Description | Access |
+|---|---|---|---|
+| `GET` | `/users/` | List all users | Admin |
+| `POST` | `/users/` | Public signup (always creates Viewer) | Public |
+| `POST` | `/users/admin` | Create user with selected role | Admin |
+| `PATCH` | `/users/{user_id}/role` | Change user role | Admin |
+| `DELETE` | `/users/{user_id}` | Delete a user account | Admin |
+
+### Finance Records
+
+| Method | Endpoint | Description | Access |
+|---|---|---|---|
+| `POST` | `/records/` | Create new finance record | Analyst/Admin (own records) |
+| `GET` | `/records/` | Read records dataset with filters | Analyst/Admin |
+| `DELETE` | `/records/{record_id}` | Soft delete a record | Analyst/Admin (own records) |
+
+### Dashboard Analytics
+
+| Method | Endpoint | Description | Access |
+|---|---|---|---|
+| `GET` | `/analytics/summary` | Global financial summary for dashboard | Viewer/Analyst/Admin |
+
+### System
+
+| Method | Endpoint | Description | Access |
+|---|---|---|---|
+| `GET` | `/health` | Health check endpoint | Public |
+
+### Query Filters for `/records/`
+
+Supported query parameters:
+- `record_type`
+- `category`
+- `start_date`
+- `end_date`
+- `skip`
+- `limit`
 
 ---
 
@@ -153,6 +212,18 @@ docker-compose up --build
 
 - **Frontend UI (Streamlit):** http://localhost:8501
 - **Backend API Docs (Swagger):** http://localhost:8000/docs
+
+### 5) Demo Accounts Created on First Run
+
+On the first startup, the backend seed routine creates demo users automatically if the admin account does not already exist. This gives you ready-to-test accounts for each role without manual setup.
+
+| Role | Email | Password |
+|---|---|---|
+| **Admin** | `admin@panopticon.com` | `admin123` |
+| **Analyst** | `analyst@panopticon.com` | `analyst123` |
+| **Viewer** | `viewer@panopticon.com` | `viewer123` |
+
+The seeding logic is triggered during app startup in [backend/main.py](backend/main.py) and implemented in [backend/services/user_service.py](backend/services/user_service.py).
 
 ---
 

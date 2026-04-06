@@ -57,12 +57,12 @@ def get_current_user(
 # -- Role-Based Access Control (RBAC) Dependency --
 class RoleChecker:
     def __init__(self, allowed_roles: list):
-        # Convert all allowed roles to lowercase for safe checking
-        self.allowed_roles = [role.lower() for role in allowed_roles]
+        # Normalize allowed roles to prevent case/whitespace mismatches.
+        self.allowed_roles = [str(role).strip().lower() for role in allowed_roles]
 
     def __call__(self, current_user: db_models.User = Depends(get_current_user)):
-        # Convert the user's actual role to lowercase before checking
-        if current_user.role.lower() not in self.allowed_roles:
+        normalized_role = str(current_user.role).strip().lower()
+        if normalized_role not in self.allowed_roles:
             raise HTTPException(
                 status_code=403, 
                 detail=f"Operation not permitted. Your role '{current_user.role}' is blocked. Allowed roles: {self.allowed_roles}"

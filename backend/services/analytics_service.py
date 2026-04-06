@@ -2,12 +2,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 import models.db_models as db_models
 
-def get_user_analytics(db: Session, owner_id: int):
+def get_global_analytics(db: Session):
     totals = db.query(
         db_models.FinanceRecord.record_type,
         func.sum(db_models.FinanceRecord.amount).label("total")
     ).filter(
-        db_models.FinanceRecord.owner_id == owner_id,
         db_models.FinanceRecord.is_deleted == False
     ).group_by(db_models.FinanceRecord.record_type).all()
 
@@ -26,7 +25,6 @@ def get_user_analytics(db: Session, owner_id: int):
         db_models.FinanceRecord.category,
         func.sum(db_models.FinanceRecord.amount).label("total")
     ).filter(
-        db_models.FinanceRecord.owner_id == owner_id,
         db_models.FinanceRecord.is_deleted == False,
         db_models.FinanceRecord.record_type == "Expense",
     ).group_by(db_models.FinanceRecord.category).all()

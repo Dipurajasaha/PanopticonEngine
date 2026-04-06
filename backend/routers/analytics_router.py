@@ -17,4 +17,4 @@ def get_dashboard_summary(
     db          : Session= Depends(get_db),
     current_user: db_models.User = Depends(allow_dashboard)
 ):
-    return analytics_service.get_user_analytics(db=db, owner_id=current_user.id)
+    return analytics_service.get_global_analytics(db=db)

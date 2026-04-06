@@ -20,6 +20,20 @@ def create_user(user: api_schemas.UserCreate, db: Session = Depends(get_db)):
     if existing_user: 
         raise HTTPException(status_code=400, detail="Email already register")
     
+    user.role = "Viewer"
+    return user_service.create_user(db=db, user=user)
+
+
+@router.post("/admin", response_model=api_schemas.UserResponse)
+def admin_create_user(
+    user: api_schemas.UserCreate,
+    db: Session = Depends(get_db),
+    _ : db_models.User = Depends(allow_admin)
+):
+    existing_user = user_service.get_user_by_email(db, email=user.email)
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already register")
+
     return user_service.create_user(db=db, user=user)
 
 # -- Admin route: only Admins can manage all users in the system --
@@ -29,3 +43,31 @@ def get_all_users(
         _    : db_models.User = Depends(allow_admin)
 ):
     return db.query(db_models.User).all()
+
+
+@router.patch("/{user_id}/role", response_model=api_schemas.UserResponse)
+def update_user_role(
+    user_id: int,
+    payload: api_schemas.UserRoleUpdate,
+    db: Session = Depends(get_db),
+    _ : db_models.User = Depends(allow_admin)
+):
+    updated_user = user_service.update_user_role(db=db, user_id=user_id, role=payload.role)
+    if not updated_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return updated_user
+
+
+@router.delete("/{user_id}")
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: db_models.User = Depends(allow_admin)
+):
+    if current_user.id == user_id:
+        raise HTTPException(status_code=400, detail="Admin cannot delete own account")
+
+    deleted = user_service.delete_user(db=db, user_id=user_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"message": "User deleted successfully"}

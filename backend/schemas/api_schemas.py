@@ -18,6 +18,10 @@ class UserResponse(BaseModel):
         from_attributes = True
 
 
+class UserRoleUpdate(BaseModel):
+    role: str
+
+
 
 # -- finance record  schemas --
 class RecordCreate(BaseModel):

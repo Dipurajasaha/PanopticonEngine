@@ -49,6 +49,31 @@ def get_user_records(
     return query.offset(skip).limit(limit).all()
 
 
+def get_all_records(
+        db          : Session,
+        skip        : int = 0,
+        limit       : int = 100,
+        record_type : Optional[str] = None,
+        category    : Optional[str] = None,
+        start_date  : Optional[datetime] = None,
+        end_date    : Optional[datetime] = None
+):
+    query = db.query(db_models.FinanceRecord).filter(
+        db_models.FinanceRecord.is_deleted == False
+    )
+
+    if record_type:
+        query = query.filter(db_models.FinanceRecord.record_type.ilike(record_type))
+    if category:
+        query = query.filter(db_models.FinanceRecord.category.ilike(category))
+    if start_date:
+        query = query.filter(db_models.FinanceRecord.created_at >= start_date)
+    if end_date:
+        query = query.filter(db_models.FinanceRecord.created_at <= end_date)
+
+    return query.offset(skip).limit(limit).all()
+
+
 def soft_delete_record(db: Session, record_id: int, owner_id: int):
     # -- soft deletes a finance record for a user --
     db_record = db.query(db_models.FinanceRecord).filter(
