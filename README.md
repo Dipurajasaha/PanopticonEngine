@@ -1,0 +1,174 @@
+# Panopticon Engine
+
+> **Panopticon Engine** is a finance intelligence platform designed for secure, role-aware, and analytics-driven decision support.
+>
+> Built on a microservice-oriented layout, it combines a **FastAPI backend** for secure data operations and a **Streamlit frontend** for interactive financial insights.
+
+<p align="center">
+	<strong>FastAPI</strong> • <strong>SQLAlchemy</strong> • <strong>SQLite</strong> • <strong>PyJWT</strong> • <strong>Streamlit</strong> • <strong>Docker Compose</strong>
+</p>
+
+---
+
+## Overview
+
+Panopticon Engine is engineered to turn financial records into actionable intelligence through a secure API layer, strict access governance, and a dedicated analytics computation layer.
+
+It is designed to support:
+- **Operational control** with authenticated and role-limited access.
+- **Data lifecycle integrity** using soft deletion patterns.
+- **Decision intelligence** through aggregated analytics dashboards.
+- **Container-first execution** for predictable local and deployment workflows.
+
+### Why This Platform Stands Out
+
+- **Security-first API layer** with JWT and role-scoped endpoint access.
+- **Analytical depth** through a dedicated mathematical aggregation engine.
+- **Operational reliability** with strict filtering and soft-delete semantics.
+- **Environment parity** from local development to containerized runtime.
+
+---
+
+## Architecture & Tech Stack
+
+### Monorepo Service Layout
+
+```text
+docker-compose.yml
+backend/    -> FastAPI microservice (API, auth, RBAC, persistence, analytics logic)
+frontend/   -> Streamlit microservice (dashboard UI, API consumption)
+```
+
+### Service Interaction Flow
+
+```text
+User -> Streamlit Frontend (8501) -> FastAPI Backend (8000) -> SQLite via SQLAlchemy
+```
+
+### Backend Stack
+
+- **FastAPI** for high-performance REST endpoints
+- **SQLAlchemy** for ORM and database interaction
+- **SQLite** for lightweight persistence
+- **passlib (bcrypt)** for password hashing
+- **PyJWT** for token-based authentication
+
+### Frontend Stack
+
+- **Streamlit** for an interactive analytics dashboard
+- **Pandas** for in-app data shaping and tabular analysis
+- **Requests** for backend API communication
+
+### Deployment Stack
+
+- **Docker** for service containerization
+- **docker-compose** for multi-service orchestration
+
+---
+
+## Core Features
+
+### 🔐 JWT Authentication
+Secure authentication flow using signed JWT access tokens. Users authenticate once and interact with protected endpoints based on role claims.
+
+### 🧠 Mathematical Analytics Engine
+Dedicated analytics service layer computes dashboard-level aggregations and summaries to surface financial intelligence quickly and consistently.
+
+### 🗂️ Soft Deletion
+Records are never hard-deleted by default. Instead, logical deletion preserves historical continuity and auditability while keeping active views clean.
+
+### 🎯 Robust Query Filtering
+Finance retrieval endpoints support precise filtering to narrow large datasets efficiently:
+- **Date-based filtering**
+- **Category filtering**
+- **Type filtering**
+
+### ⚙️ Container-Native Execution
+Two isolated services run in lockstep under Docker Compose, enabling reproducible startup, consistent networking, and clean dependency boundaries.
+
+---
+
+## Role-Based Access Control (RBAC)
+
+| Role | Analytics Dashboard | View Finance Records | Create Finance Records | Delete Finance Records | Manage Users |
+|---|---:|---:|---:|---:|---:|
+| **Viewer** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Analyst** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **Admin** | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+---
+
+## Quick Start (Docker)
+
+### 1) Create `.env` at the project root
+
+Create a `.env` file next to `docker-compose.yml` with the following values:
+
+```env
+DATABASE_URL=sqlite:///./panopticon.db
+SECRET_KEY=change_this_to_a_long_random_secret
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+API_URL=http://backend:8000
+```
+
+### 2) Ensure `docker-compose.yml` matches this setup
+
+```yaml
+version: '3.8'
+
+services:
+	# -- FastAPI Server --
+	backend:
+		build: ./backend
+		container_name: panopticon_backend
+		ports:
+			- "8000:8000"
+		env_file:
+			- .env
+		volumes:
+			# This saves SQLite database to local computer
+			# so it doesn't get deleted when Docker turns off!
+			- ./backend:/app 
+
+	# -- Streamlit Dashboard --
+	frontend:
+		build: ./frontend
+		container_name: panopticon_frontend
+		ports:
+			- "8501:8501"
+		env_file:
+			- .env
+		depends_on:
+			- backend
+```
+
+### 3) Build and run all services
+
+```bash
+docker-compose up --build
+```
+
+### 4) Open the platform
+
+- **Frontend UI (Streamlit):** http://localhost:8501
+- **Backend API Docs (Swagger):** http://localhost:8000/docs
+
+---
+
+## Runtime Snapshot
+
+After startup, the platform runs as two coordinated services:
+- **backend**: authentication, user/finance endpoints, analytics computations
+- **frontend**: dashboard client consuming backend APIs
+
+This separation keeps business logic centralized while delivering a responsive analytics interface.
+
+---
+
+## Docker Guide Notes
+
+- Backend service is exposed at **8000**.
+- Frontend service is exposed at **8501**.
+- The backend volume mount (`./backend:/app`) persists SQLite data/code context across container restarts.
+- Frontend waits for backend service availability via `depends_on`.
