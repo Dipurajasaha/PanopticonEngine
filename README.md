@@ -175,6 +175,12 @@ Supported query parameters:
 - `skip`
 - `limit`
 
+### Cache / Polling Version Endpoints
+
+These endpoints support the Redis cache + frontend polling workflow:
+- `GET /records/version` - returns the current finance data version flag
+- `GET /analytics/version` - returns the same version key for dashboard polling
+
 ---
 
 ## Quick Start (Docker)
