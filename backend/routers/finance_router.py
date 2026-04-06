@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
@@ -8,6 +8,8 @@ import services.finance_service as finance_service
 from database import get_db
 from routers.auth_router import RoleChecker
 import models.db_models as db_models
+import services.audit_service as audit_service
+
 
 router = APIRouter(prefix="/records", tags=["Finance Records"])
 
@@ -20,11 +22,18 @@ allow_edit_records = RoleChecker(["Admin", "Analyst"])
 # -- Admin and Analyst can create record -- 
 @router.post("/", response_model=api_schemas.RecordResponse)
 def create_record(
-    record          :api_schemas.RecordCreate, 
-    db              :Session = Depends(get_db),
-    current_user    :db_models.User = Depends(allow_edit_records)
+    record            : api_schemas.RecordCreate, 
+    background_tasks  : BackgroundTasks,
+    db                : Session = Depends(get_db),
+    current_user      : db_models.User = Depends(allow_edit_records)
 ):
-    return finance_service.create_finance_record(db=db, record=record, owner_id=current_user.id)
+    new_record = finance_service.create_finance_record(db=db, record=record, owner_id=current_user.id)
+
+    background_tasks.add_task(
+        audit_service.log_action,
+        db, current_user.id, "CREATE", "FinanceRecord", f"Created record ID: {new_record.id}"
+    )
+    return new_record
 
 
 # -- Admin and Analyst can view record --
@@ -53,11 +62,17 @@ def read_records(
 # -- Admin and Analyst can delete record --
 @router.delete("/{record_id}")
 def delete_record(
-    record_id     :int, 
-    db            :Session = Depends(get_db),
-    current_user  :db_models.User = Depends(allow_edit_records)
+    record_id         : int, 
+    background_tasks  : BackgroundTasks,
+    db                : Session = Depends(get_db),
+    current_user      : db_models.User = Depends(allow_edit_records)
 ):
     success = finance_service.soft_delete_record(db=db, record_id=record_id, owner_id=current_user.id)
     if not success:
         raise HTTPException(status_code=404, detail="Record not found or already deleted")
+    
+    background_tasks.add_task(
+        audit_service.log_action,
+        db, current_user.id, "DELETE", "FinanceRecord", f"Soft deleted record ID: {record_id}"
+    )
     return {"message": "Record successfully deleted..."}

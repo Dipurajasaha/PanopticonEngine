@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -7,6 +7,7 @@ import jwt
 from database import get_db
 import services.user_service as user_service
 import services.auth_service as auth_service
+import services.audit_service as audit_service
 import models.db_models as db_models
 
 
@@ -20,12 +21,25 @@ class LoginRequest(BaseModel):
 
 # -- Login endpoint --
 @router.post("/login")
-def login(credentials: LoginRequest, db: Session = Depends(get_db)):
+def login(
+    credentials: LoginRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
     user = user_service.get_user_by_email(db, email=credentials.email)
 
     if not user or not auth_service.verify_password(credentials.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password !!!")
-    
+
+    background_tasks.add_task(
+        audit_service.log_action,
+        db,
+        user.id,
+        "LOGIN",
+        "System",
+        "User authenticated successfully",
+    )
+
     token = auth_service.create_jwt_token(user_id=user.id, role=user.role)
     return {"access_token": token, "token_type": "bearer"}
 

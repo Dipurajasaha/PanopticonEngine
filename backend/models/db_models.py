@@ -44,3 +44,16 @@ class TransactionAnalysis(Base):
     anomaly_score = Column(Float, nullable=True)
 
     record = relationship("FinanceRecord", back_populates="transaction_analysis")
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index = True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    action = Column(String, index=True)
+    resource = Column(String)
+    details = Column(String, nullable=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User")
