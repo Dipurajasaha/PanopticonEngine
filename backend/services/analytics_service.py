@@ -26,7 +26,6 @@ def get_global_analytics(db: Session):
         func.sum(db_models.FinanceRecord.amount).label("total")
     ).filter(
         db_models.FinanceRecord.is_deleted == False,
-        db_models.FinanceRecord.record_type == "Expense",
     ).group_by(db_models.FinanceRecord.category).all()
     
 

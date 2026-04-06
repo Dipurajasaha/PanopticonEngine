@@ -9,7 +9,7 @@ from database import get_db
 from routers.auth_router import RoleChecker
 import models.db_models as db_models
 import services.audit_service as audit_service
-
+import services.cache_service as cache_service
 
 router = APIRouter(prefix="/records", tags=["Finance Records"])
 
@@ -17,6 +17,13 @@ router = APIRouter(prefix="/records", tags=["Finance Records"])
 allow_admin = RoleChecker(["Admin"])
 allow_view_records = RoleChecker(["Admin","Analyst"])
 allow_edit_records = RoleChecker(["Admin", "Analyst"])
+
+
+@router.get("/version")
+def get_records_version(
+    _current_user: db_models.User = Depends(allow_view_records)
+):
+    return {"version": cache_service.get_finance_data_version()}
 
 
 # -- Admin and Analyst can create record -- 
@@ -33,6 +40,10 @@ def create_record(
         audit_service.log_action,
         db, current_user.id, "CREATE", "FinanceRecord", f"Created record ID: {new_record.id}"
     )
+
+    cache_service.invalidate_dashboard_cache()
+    cache_service.bump_finance_data_version()
+
     return new_record
 
 
@@ -75,4 +86,8 @@ def delete_record(
         audit_service.log_action,
         db, current_user.id, "DELETE", "FinanceRecord", f"Soft deleted record ID: {record_id}"
     )
+    
+    cache_service.invalidate_dashboard_cache()
+    cache_service.bump_finance_data_version()
+
     return {"message": "Record successfully deleted..."}

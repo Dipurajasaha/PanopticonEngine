@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import Optional
 from datetime import datetime
 
@@ -32,7 +33,8 @@ def get_user_records(
     # -- fetches user active records --
     query = db.query(db_models.FinanceRecord).filter(
         db_models.FinanceRecord.owner_id == owner_id,
-        db_models.FinanceRecord.is_deleted == False
+        db_models.FinanceRecord.is_deleted == False,
+        func.lower(db_models.FinanceRecord.record_type).in_(["income", "expense"]),
     )
 
     # -- dynamically add filters if user provides them --
@@ -59,7 +61,8 @@ def get_all_records(
         end_date    : Optional[datetime] = None
 ):
     query = db.query(db_models.FinanceRecord).filter(
-        db_models.FinanceRecord.is_deleted == False
+        db_models.FinanceRecord.is_deleted == False,
+        func.lower(db_models.FinanceRecord.record_type).in_(["income", "expense"]),
     )
 
     if record_type:

@@ -2,22 +2,23 @@
 
 > **Panopticon Engine** is a finance intelligence platform designed for secure, role-aware, and analytics-driven decision support.
 >
-> Built on a microservice-oriented layout, it combines a **FastAPI backend** for secure data operations and a **Streamlit frontend** for interactive financial insights.
+> Built on a microservice-oriented layout, it combines a **FastAPI backend** for secure data operations, **Redis-backed caching and version tracking** for faster refreshes, and a **Streamlit frontend** for interactive financial insights.
 
 <p align="center">
-	<strong>FastAPI</strong> • <strong>SQLAlchemy</strong> • <strong>SQLite</strong> • <strong>PyJWT</strong> • <strong>Streamlit</strong> • <strong>Docker Compose</strong>
+	<strong>FastAPI</strong> • <strong>SQLAlchemy</strong> • <strong>SQLite</strong> • <strong>Redis</strong> • <strong>PyJWT</strong> • <strong>Streamlit</strong> • <strong>Docker Compose</strong>
 </p>
 
 ---
 
 ## Overview
 
-Panopticon Engine is engineered to turn financial records into actionable intelligence through a secure API layer, strict access governance, and a dedicated analytics computation layer.
+Panopticon Engine is engineered to turn financial records into actionable intelligence through a secure API layer, strict access governance, Redis-assisted caching, and a dedicated analytics computation layer.
 
 It is designed to support:
 - **Operational control** with authenticated and role-limited access.
 - **Data lifecycle integrity** using soft deletion patterns.
 - **Decision intelligence** through aggregated analytics dashboards.
+- **Low-latency refresh behavior** through Redis cache + finance data version tracking.
 - **Container-first execution** for predictable local and deployment workflows.
 
 ### Why This Platform Stands Out
@@ -42,7 +43,9 @@ frontend/   -> Streamlit microservice (dashboard UI, API consumption)
 ### Service Interaction Flow
 
 ```text
-User -> Streamlit Frontend (8501) -> FastAPI Backend (8000) -> SQLite via SQLAlchemy
+User -> Streamlit Frontend (8501) -> FastAPI Backend (8000)
+										  |-> SQLite via SQLAlchemy
+										  |-> Redis (cache + data version flag)
 ```
 
 ### Backend Stack
@@ -50,6 +53,7 @@ User -> Streamlit Frontend (8501) -> FastAPI Backend (8000) -> SQLite via SQLAlc
 - **FastAPI** for high-performance REST endpoints
 - **SQLAlchemy** for ORM and database interaction
 - **SQLite** for lightweight persistence
+- **Redis** for dashboard caching and finance data version signaling
 - **passlib (bcrypt)** for password hashing
 - **PyJWT** for token-based authentication
 
@@ -63,6 +67,7 @@ User -> Streamlit Frontend (8501) -> FastAPI Backend (8000) -> SQLite via SQLAlc
 
 - **Docker** for service containerization
 - **docker-compose** for multi-service orchestration
+- **Redis container** for low-latency cache and version-key coordination
 
 ---
 
@@ -88,6 +93,16 @@ Two isolated services run in lockstep under Docker Compose, enabling reproducibl
 
 ### 📊 Comprehensive Audit Logging
 All critical actions (login, user creation, role updates, record operations) are logged to both the database and server terminal in real-time. Formatted audit logs display user ID, action type, affected resource, and contextual details for complete operational visibility.
+
+### ⚡ Redis Cache + Version Flag Refresh
+Panopticon Engine uses a two-layer freshness model for responsive pages and controlled refreshes:
+
+- **Redis dashboard cache** stores precomputed global analytics summary to avoid repeated heavy aggregation.
+- **Finance data version flag** is incremented on every finance create/delete transaction.
+- **Frontend polling (every 5 seconds)** checks the version key via API.
+- **Conditional refresh**: if version is unchanged, UI keeps current data; if changed, UI cache is invalidated and data is refetched.
+
+This approach reduces unnecessary reloads while still keeping dashboard and explorer views fresh after transactions.
 
 ---
 
@@ -132,6 +147,7 @@ All critical actions (login, user creation, role updates, record operations) are
 
 | Method | Endpoint | Description | Access |
 |---|---|---|---|
+| `GET` | `/records/version` | Get current finance data version flag | Analyst/Admin |
 | `POST` | `/records/` | Create new finance record | Analyst/Admin (own records) |
 | `GET` | `/records/` | Read records dataset with filters | Analyst/Admin |
 | `DELETE` | `/records/{record_id}` | Soft delete a record | Analyst/Admin (own records) |
@@ -141,6 +157,7 @@ All critical actions (login, user creation, role updates, record operations) are
 | Method | Endpoint | Description | Access |
 |---|---|---|---|
 | `GET` | `/analytics/summary` | Global financial summary for dashboard | Viewer/Analyst/Admin |
+| `GET` | `/analytics/version` | Get finance data version key for client polling | Viewer/Analyst/Admin |
 
 ### System
 
@@ -162,12 +179,28 @@ Supported query parameters:
 
 ## Quick Start (Docker)
 
+### 0) Get the source code from GitHub
+
+Clone the repository first:
+
+```bash
+git clone https://github.com/Dipurajasaha/PanopticonEngine.git
+cd PanopticonEngine
+```
+
+If you already have the repo locally, pull the latest changes instead:
+
+```bash
+git pull origin main
+```
+
 ### 1) Create `.env` at the project root
 
 Create a `.env` file next to `docker-compose.yml` with the following values:
 
 ```env
 DATABASE_URL=sqlite:///./panopticon.db
+REDIS_URL=redis://redis:6379/0
 SECRET_KEY=change_this_to_a_long_random_secret
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=60
@@ -180,6 +213,13 @@ API_URL=http://backend:8000
 version: '3.8'
 
 services:
+	# -- Redis Cache/Version Store --
+	redis:
+		image: redis:7-alpine
+		container_name: panopticon_redis
+		ports:
+			- "6379:6379"
+
 	# -- FastAPI Server --
 	backend:
 		build: ./backend
@@ -192,6 +232,8 @@ services:
 			# This saves SQLite database to local computer
 			# so it doesn't get deleted when Docker turns off!
 			- ./backend:/app 
+		depends_on:
+			- redis
 
 	# -- Streamlit Dashboard --
 	frontend:
@@ -242,7 +284,7 @@ This separation keeps business logic centralized while delivering a responsive a
 
 ## Docker Guide Notes
 
-- Backend service is exposed at **8000**.
-- Frontend service is exposed at **8501**.
-- The backend volume mount (`./backend:/app`) persists SQLite data/code context across container restarts.
-- Frontend waits for backend service availability via `depends_on`.
+- The backend API is available at [http://localhost:8000](http://localhost:8000).
+- The Streamlit frontend is available at [http://localhost:8501](http://localhost:8501).
+- The backend container uses the `./backend:/app` volume mount, which keeps the app files and SQLite database available across container restarts.
+- The frontend service uses `depends_on` so Docker starts the backend before the frontend, but the backend may still need a few seconds to finish booting before the UI is fully ready.

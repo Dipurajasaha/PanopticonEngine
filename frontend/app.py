@@ -1,6 +1,8 @@
 import os
 import json
 import base64
+import re
+import time
 from datetime import datetime, time
 
 import requests
@@ -11,6 +13,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 API_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
+EMAIL_REGEX = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
+VALID_RECORD_TYPES = {"income", "expense"}
 
 st.set_page_config(page_title="Panopticon Engine", page_icon="📊", layout="wide")
 
@@ -63,6 +67,12 @@ def auth_headers(token: str) -> dict:
 def init_state() -> None:
     st.session_state.setdefault("token", None)
     st.session_state.setdefault("user_email", None)
+    st.session_state.setdefault("fx_applied_record_type", "All")
+    st.session_state.setdefault("fx_applied_category", "All")
+    st.session_state.setdefault("fx_applied_date_range", ())
+    st.session_state.setdefault("fx_applied_max_rows", 300)
+    st.session_state.setdefault("data_version", None)
+    st.session_state.setdefault("last_data_version_check", 0.0)
 
 
 def clear_login_state() -> None:
@@ -77,12 +87,24 @@ def api_error_message(resp: requests.Response) -> str:
         return ""
 
 
-@st.cache_data(ttl=30)
+def api_error_message_from_payload(payload: dict) -> str:
+    body = payload.get("body")
+    if isinstance(body, dict):
+        return str(body.get("detail", ""))
+    return ""
+
+
+@st.cache_data(ttl=45, show_spinner=False)
 def fetch_dashboard_summary(api_url: str, token: str):
-    return requests.get(f"{api_url}/analytics/summary", headers=auth_headers(token), timeout=12)
+    response = requests.get(f"{api_url}/analytics/summary", headers=auth_headers(token), timeout=12)
+    try:
+        body = response.json()
+    except ValueError:
+        body = {}
+    return {"status_code": response.status_code, "body": body}
 
 
-@st.cache_data(ttl=20)
+@st.cache_data(ttl=30, show_spinner=False)
 def fetch_records(
     api_url: str,
     token: str,
@@ -102,12 +124,61 @@ def fetch_records(
     if end_iso:
         params["end_date"] = end_iso
 
-    return requests.get(
+    response = requests.get(
         f"{api_url}/records/",
         headers=auth_headers(token),
         params=params,
         timeout=15,
     )
+    try:
+        body = response.json()
+    except ValueError:
+        body = []
+    return {"status_code": response.status_code, "body": body}
+
+
+def fetch_data_version(api_url: str, token: str):
+    response = requests.get(f"{api_url}/analytics/version", headers=auth_headers(token), timeout=6)
+    try:
+        body = response.json()
+    except ValueError:
+        body = {}
+    return {"status_code": response.status_code, "body": body}
+
+
+def check_for_data_updates(token: str, force: bool = False) -> None:
+    now = time.time()
+    last_check = float(st.session_state.get("last_data_version_check", 0.0))
+    if not force and (now - last_check) < 5:
+        return
+
+    st.session_state["last_data_version_check"] = now
+
+    try:
+        version_result = fetch_data_version(API_URL, token)
+    except requests.RequestException:
+        return
+
+    if version_result.get("status_code") != 200:
+        return
+
+    latest_version = int(version_result.get("body", {}).get("version", 0))
+    current_version = st.session_state.get("data_version")
+
+    if current_version is None:
+        st.session_state["data_version"] = latest_version
+        return
+
+    if latest_version != current_version:
+        st.session_state["data_version"] = latest_version
+        fetch_records.clear()
+        fetch_dashboard_summary.clear()
+        st.rerun()
+
+
+@st.fragment(run_every="5s")
+def data_version_watcher(token: str) -> None:
+    check_for_data_updates(token, force=True)
 
 
 def create_record(api_url: str, token: str, payload: dict):
@@ -198,6 +269,20 @@ def records_to_df(items: list[dict]) -> pd.DataFrame:
     return df
 
 
+def sanitize_records_df(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+    if df.empty or "record_type" not in df.columns:
+        return df, 0
+
+    normalized_type = df["record_type"].fillna("").astype(str).str.strip().str.lower()
+    valid_mask = normalized_type.isin(VALID_RECORD_TYPES)
+    invalid_count = int((~valid_mask).sum())
+
+    sanitized_df = df[valid_mask].copy()
+    sanitized_df["normalized_record_type"] = normalized_type[valid_mask]
+
+    return sanitized_df, invalid_count
+
+
 def render_hero(user_id: str, username: str, email_id: str, role: str) -> None:
     st.markdown(
         f"""
@@ -215,30 +300,30 @@ def render_exec_dashboard(token: str) -> None:
     st.caption("High-level financial intelligence from the analytics engine.")
 
     try:
-        response = fetch_dashboard_summary(API_URL, token)
+        result = fetch_dashboard_summary(API_URL, token)
     except requests.RequestException:
         st.error("Could not connect to backend while loading dashboard summary.")
         return
 
-    if response.status_code == 401:
+    if result["status_code"] == 401:
         st.warning("Session expired. Please log in again.")
         clear_login_state()
         st.rerun()
         return
-    if response.status_code != 200:
-        st.error(f"Dashboard request failed ({response.status_code}). {api_error_message(response)}")
+    if result["status_code"] != 200:
+        st.error(f"Dashboard request failed ({result['status_code']}). {api_error_message_from_payload(result)}")
         return
 
-    data = response.json()
+    data = result.get("body", {})
     c1, c2, c3 = st.columns(3)
     c1.metric("Total Income", f"${data.get('total_income', 0):,.2f}")
     c2.metric("Total Expense", f"${data.get('total_expense', 0):,.2f}")
 
     net = float(data.get("net_balance", 0))
-    c3.metric("Net Balance", f"${net:,.2f}", delta="Positive" if net >= 0 else "Negative")
+    c3.metric("Net Balance", f"${net:,.2f}", delta=f"{net:+,.2f}")
 
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("### Expense Distribution by Category")
+    st.markdown("### Category Distribution")
     breakdown = data.get("category_breakdown", [])
     if breakdown:
         cat_df = pd.DataFrame(breakdown).rename(columns={"total_amount": "total"})
@@ -255,12 +340,51 @@ def render_finance_explorer(token: str, role: str) -> None:
 
     with st.sidebar:
         st.markdown("### Filters")
-        record_type = st.selectbox("Record Type", ["All", "Income", "Expense"], index=0)
-        category = st.text_input("Category (exact)", value="All")
-        if not category.strip():
-            category = "All"
-        date_range = st.date_input("Date Range", value=())
-        max_rows = st.slider("Max Rows", min_value=50, max_value=1000, value=300, step=50)
+        with st.form("finance_filters_form"):
+            draft_record_type = st.selectbox(
+                "Record Type",
+                ["All", "Income", "Expense"],
+                index=["All", "Income", "Expense"].index(st.session_state.get("fx_applied_record_type", "All")),
+            )
+            draft_category = st.text_input(
+                "Category (exact)",
+                value=st.session_state.get("fx_applied_category", "All"),
+            )
+            draft_date_range = st.date_input(
+                "Date Range",
+                value=st.session_state.get("fx_applied_date_range", ()),
+            )
+            draft_max_rows = st.slider(
+                "Max Rows",
+                min_value=50,
+                max_value=1000,
+                value=int(st.session_state.get("fx_applied_max_rows", 300)),
+                step=50,
+            )
+
+            col_apply, col_reset = st.columns(2)
+            apply_filters = col_apply.form_submit_button("Apply Filters", use_container_width=True)
+            reset_filters = col_reset.form_submit_button("Reset Filters", use_container_width=True)
+
+        if apply_filters:
+            st.session_state["fx_applied_record_type"] = draft_record_type
+            st.session_state["fx_applied_category"] = draft_category.strip() or "All"
+            st.session_state["fx_applied_date_range"] = draft_date_range
+            st.session_state["fx_applied_max_rows"] = draft_max_rows
+            fetch_records.clear()
+
+        if reset_filters:
+            st.session_state["fx_applied_record_type"] = "All"
+            st.session_state["fx_applied_category"] = "All"
+            st.session_state["fx_applied_date_range"] = ()
+            st.session_state["fx_applied_max_rows"] = 300
+            fetch_records.clear()
+            st.rerun()
+
+    record_type = st.session_state.get("fx_applied_record_type", "All")
+    category = st.session_state.get("fx_applied_category", "All")
+    date_range = st.session_state.get("fx_applied_date_range", ())
+    max_rows = int(st.session_state.get("fx_applied_max_rows", 300))
 
     start_iso = ""
     end_iso = ""
@@ -271,43 +395,60 @@ def render_finance_explorer(token: str, role: str) -> None:
         end_iso = end_dt.isoformat()
 
     try:
-        response = fetch_records(API_URL, token, record_type, category, start_iso, end_iso, max_rows)
+        result = fetch_records(API_URL, token, record_type, category, start_iso, end_iso, max_rows)
     except requests.RequestException:
         st.error("Could not connect to backend while loading records.")
         return
 
-    if response.status_code == 401:
+    if result["status_code"] == 401:
         st.warning("Session expired. Please log in again.")
         clear_login_state()
         st.rerun()
         return
-    if response.status_code == 403:
+    if result["status_code"] == 403:
         st.error("Your role cannot access finance records.")
         return
-    if response.status_code != 200:
-        st.error(f"Record query failed ({response.status_code}). {api_error_message(response)}")
+    if result["status_code"] != 200:
+        st.error(f"Record query failed ({result['status_code']}). {api_error_message_from_payload(result)}")
         return
 
-    df = records_to_df(response.json())
+    records_payload = result.get("body", [])
+    if not isinstance(records_payload, list):
+        st.error("Record query returned an unexpected payload format.")
+        return
+
+    df = records_to_df(records_payload)
     if df.empty:
         st.info("No records match the selected filters.")
         return
 
-    income = float(df[df["record_type"].str.lower() == "income"]["amount"].sum())
-    expense = float(df[df["record_type"].str.lower() == "expense"]["amount"].sum())
+    df, invalid_rows = sanitize_records_df(df)
+    if invalid_rows > 0:
+        st.warning(
+            f"Ignored {invalid_rows} legacy rows with invalid record_type values (example: 'string')."
+        )
+
+    if df.empty:
+        st.info("No valid Income/Expense records available for charts after data validation.")
+        return
+
+    normalized_type = df["normalized_record_type"]
+    income = float(df[normalized_type == "income"]["amount"].sum())
+    expense = float(df[normalized_type == "expense"]["amount"].sum())
     net = income - expense
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Rows", f"{len(df):,}")
     m2.metric("Income", f"${income:,.2f}")
     m3.metric("Expense", f"${expense:,.2f}")
-    m4.metric("Net", f"${net:,.2f}", delta="Positive" if net >= 0 else "Negative")
+    m4.metric("Net", f"${net:,.2f}", delta=f"{net:+,.2f}")
 
     tab1, tab2, tab3 = st.tabs(["Trend", "Category", "Data Table"])
 
     with tab1:
         trend = df.copy()
         trend["day"] = trend["created_at"].dt.date
+        trend["record_type"] = trend["normalized_record_type"].str.title()
         trend = trend.groupby(["day", "record_type"], as_index=False)["amount"].sum()
         if trend.empty:
             st.info("Not enough data for trend chart.")
@@ -322,14 +463,29 @@ def render_finance_explorer(token: str, role: str) -> None:
                     st.caption(f"Period movement: {pct:+.1f}% from first to latest point.")
 
     with tab2:
-        expense_df = df[df["record_type"].str.lower() == "expense"]
-        if expense_df.empty:
-            st.info("No expense rows available for category distribution.")
+        if record_type == "Income":
+            chart_df = df[df["normalized_record_type"] == "income"]
+            chart_title = "Income Distribution by Category"
+        elif record_type == "Expense":
+            chart_df = df[df["normalized_record_type"] == "expense"]
+            chart_title = "Expense Distribution by Category"
         else:
-            cat = expense_df.groupby("category", as_index=False)["amount"].sum().sort_values("amount", ascending=False)
+            chart_df = df
+            chart_title = "Record Distribution by Category"
+
+        if chart_df.empty:
+            st.info("No rows available for category distribution under current filters.")
+        else:
+            st.markdown(f"**{chart_title}**")
+            cat = chart_df.groupby("category", as_index=False)["amount"].sum().sort_values("amount", ascending=False)
             st.bar_chart(cat.set_index("category"))
             top = cat.iloc[0]
-            st.caption(f"Top expense category: {top['category']} (${top['amount']:,.2f}).")
+            if "Income" in chart_title:
+                st.caption(f"Top income category: {top['category']} (${top['amount']:,.2f}).")
+            elif "Expense" in chart_title:
+                st.caption(f"Top expense category: {top['category']} (${top['amount']:,.2f}).")
+            else:
+                st.caption(f"Top category: {top['category']} (${top['amount']:,.2f}).")
 
     with tab3:
         display_df = df[["id", "created_at", "record_type", "category", "amount", "description"]].copy()
@@ -356,15 +512,15 @@ def render_record_operations(token: str, current_user_id: int) -> None:
     with left:
         st.markdown("### Create Record")
         with st.form("create_record_form"):
-            amount = st.number_input("Amount", min_value=0.0, step=1.0)
+            amount = st.number_input("Amount", min_value=0.01, step=1.0)
             record_type = st.selectbox("Type", ["Income", "Expense"])
             category = st.text_input("Category")
             description = st.text_area("Description", height=90)
             submit = st.form_submit_button("Create")
 
             if submit:
-                if not category.strip():
-                    st.error("Category is required.")
+                if len(category.strip()) < 2:
+                    st.error("Category must be at least 2 characters.")
                 else:
                     payload = {
                         "amount": float(amount),
@@ -386,9 +542,14 @@ def render_record_operations(token: str, current_user_id: int) -> None:
     with right:
         st.markdown("### Delete Record")
         try:
-            resp = fetch_records(API_URL, token, "All", "All", "", "", 500)
-            if resp.status_code == 200:
-                rec_df = records_to_df(resp.json())
+            result = fetch_records(API_URL, token, "All", "All", "", "", 500)
+            if result["status_code"] == 200:
+                records_payload = result.get("body", [])
+                if not isinstance(records_payload, list):
+                    st.error("Could not load records: invalid response format.")
+                    return
+
+                rec_df = records_to_df(records_payload)
                 user_records = rec_df[rec_df["owner_id"] == current_user_id]
                 if user_records.empty:
                     st.info("No active records available.")
@@ -411,7 +572,7 @@ def render_record_operations(token: str, current_user_id: int) -> None:
                                 f"Delete failed ({del_resp.status_code}). {api_error_message(del_resp)}"
                             )
             else:
-                st.error(f"Could not load records ({resp.status_code}). {api_error_message(resp)}")
+                st.error(f"Could not load records ({result['status_code']}). {api_error_message_from_payload(result)}")
         except requests.RequestException:
             st.error("Could not reach backend while loading records.")
 
@@ -445,11 +606,17 @@ def render_user_management(token: str) -> None:
             submit = st.form_submit_button("Create User")
 
             if submit:
-                if not email.strip() or not password.strip():
+                cleaned_email = email.strip().lower()
+                cleaned_password = password.strip()
+                if not cleaned_email or not cleaned_password:
                     st.error("Email and password are required.")
+                elif not EMAIL_REGEX.match(cleaned_email):
+                    st.error("Enter a valid email address.")
+                elif len(cleaned_password) < 6:
+                    st.error("Password must be at least 6 characters.")
                 else:
                     try:
-                        resp = admin_create_user(API_URL, token, email.strip().lower(), password.strip(), role)
+                        resp = admin_create_user(API_URL, token, cleaned_email, cleaned_password, role)
                         if resp.status_code in (200, 201):
                             st.success("User created successfully.")
                             st.rerun()
@@ -543,14 +710,20 @@ def render_login_panel() -> None:
         new_password = st.text_input("New Password", type="password", key="register_password")
 
         if st.button("Register", use_container_width=True):
-            if not new_email.strip() or not new_password.strip():
+            cleaned_new_email = new_email.strip().lower()
+            cleaned_new_password = new_password.strip()
+            if not cleaned_new_email or not cleaned_new_password:
                 st.error("New email and password are required.")
+            elif not EMAIL_REGEX.match(cleaned_new_email):
+                st.error("Enter a valid email address.")
+            elif len(cleaned_new_password) < 6:
+                st.error("Password must be at least 6 characters.")
             else:
                 try:
                     register_response = register_user(
                         API_URL,
-                        new_email.strip().lower(),
-                        new_password.strip(),
+                        cleaned_new_email,
+                        cleaned_new_password,
                         
                     )
                     if register_response.status_code in (200, 201):
@@ -573,6 +746,8 @@ def main() -> None:
     if not token:
         render_login_panel()
         return
+
+    data_version_watcher(token)
 
     payload = decode_token_payload(token)
     role = normalize_role(payload.get("role", "Viewer"))

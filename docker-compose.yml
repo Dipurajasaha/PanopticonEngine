@@ -1,6 +1,13 @@
 version: '3.8'
 
 services:
+  # -- Redis Cache Server --
+  redis_cache:
+    image: redis:alpine
+    container_name: panopticon_redis
+    ports:
+      - "6379:6379"
+
   # -- FastAPI Server --
   backend:
     build: ./backend
@@ -13,6 +20,8 @@ services:
       # This saves SQLite database to local computer
       # so it doesn't get deleted when Docker turns off!
       - ./backend:/app 
+    depends_on:
+      - redis_cache
 
   # -- Streamlit Dashboard --
   frontend:

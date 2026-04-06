@@ -15,7 +15,9 @@ def _normalize_role(role: str) -> str:
         "analyst": "Analyst",
         "admin": "Admin",
     }
-    return role_map.get(normalized, "Viewer")
+    if normalized not in role_map:
+        raise ValueError("Invalid role. Allowed roles are Viewer, Analyst, Admin")
+    return role_map[normalized]
 
 
 ##########################################################################
